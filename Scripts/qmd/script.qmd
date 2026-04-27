@@ -22,15 +22,124 @@ execute:
   freeze: false 
 ---
 
-## Quarto
+# Prepare Phase
 
-## Running Code
+Load the required libraries, import, screen and correct the data.
 
 ```{r}
-1 + 1
+#| label: prepare session 
+
+  library(pastecs)
+  library(ggplot2)
+  library(ggpubr); theme_set(theme_bw())
+  library(GGally)
+  library(performance)
+  library(MuMIn)
+  library(ggeffects)
+  library(tidyverse)
+  library(broom)
+  library(car)
+
+  library(knitr)                                     # To render tables
+
+# Import data
+  soup <- read.csv("~/Desktop/Practice_10/Data/raw/SpicySoup.csv", stringsAsFactors= T) 
+#if there is a coloumn in the table  that has non-numeric values do stringsasfactors = T so they convert into factors --> VERY ideal for modeling 
+# Factors are what R uses for categorical variables in models (like treatment groups).
+  
+# clean and unterstand data 
+# data$col <- ifelse(data$col == "Yes", 1, 0) --> if data column is no/yes and you need 1/0 for fiting models!!!
+str(soup) # shows data typ and preview of the columns
+summary(soup) #numeric → mean, min, max, etc.+ factors → counts per category
+
+# Add an additional column to express the proportion of success in each batch of trials
+  soup$prop<- soup$successes/soup$n_trials
+```
+
+## Explore the data
+
+It's always a good idea to get to know your data, both by exploring them numerically and graphically. Since I asked you to write the units of the variables in the main text (because one of them contains a Greek letter), let's give that a go:
+
+-   baseline is measured in $\mu$*g/mL*
+-   temperature messured in °C
+
+### Numerically
+
+In @tbl-explore-data we see descriptive statistics for the variables of interest.
+
+```{r}
+#| label: tbl-explore-data
+#| tbl-cap: "Descriptive statistics for the variables of interest"
+#| echo: false 
+
+# Numerically take 
+ sum_stats<-
+   stat.desc(soup[, c("successes", "temp", "spice", "n_trials", "prop")], norm= T)
+ 
+ kable(sum_stats, digits= 1)
+
+cor(soup$spice , soup$successes)
+cor(soup$temp , soup$successes)
+```
+
+### Graphically
+
+```{r}
+#| label: fig-graphs-1
+#| fig-cap: "good graph"
+#| echo: false 
+
+
+# Another option is too Scatterplot matrix
+ggpairs(soup[, c("temp", "spice", "prop", "successes", "n_trials")])
 ```
 
 ```{r}
-#| echo: false
-2 * 2
+#| label: fig-graph1
+#| fig-caption: "beutiful figure"
+#| fig-width: !expr 16/2.54 #I want my figure in 16 cm whatever size it is?
+#| fig-height: !expr 9/2.54
+#| code-fold: true
+
+# Draw a graph that captures the research question - shows us a better overview 
+
+ggarrange(
+    ggplot(soup, aes(spice, prop)) +
+      geom_point(aes(size= n_trials), alpha= .4, col= "blue") +
+      geom_smooth(method= glm, method.args= list(family= "binomial"),
+                  col= "black") +
+      labs(x= expression("Spiciness (" * mu * "g/ml)"), #dollar notation for mu applies only for markdown not for R code 
+           y= "Proportion of patients with\n enhanced immune repsonse",
+           size= "Trial size"),
+    ggplot(soup, aes(temp, prop)) +
+      geom_point(aes(size= n_trials), alpha= .4, col= "blue") +
+      geom_smooth(method= glm, method.args= list(family= "binomial"),
+                  col= "black") +
+      labs(x= "Serving temperature (°C)",
+           y= "Proportion of patients with\n enhanced immune repsonse",
+           size= "Trial size"),
+    nrow= 1, ncol= 2, common.legend= T, labels= c("a)", "b)"))
+```
+
+## Fit model
+
+### Formulate and compare
+
+Now it's time to fit and compare some models (@tbl-model-comparison). As the output is in counts we will make glm models. With these data, it is quite difficult to decide which model to prefer, however, since the hypothesis involved an interaction term, lets continue with that model, `model.04`.
+
+```{r}
+#| label: tbl-model-comparison 
+#| tbl-cap: "model comparison"
+
+model.00 <- glm(prop ~ 1, weights= n_trials, family = binomial, data = soup) # weights = n_trials = number of Bernoulli trials behind each proportion! 
+model.01 <- glm(prop ~ spice, weights= n_trials, family = binomial, data = soup)
+
+model.02 <- glm(prop ~ temp, weights= n_trials, family = binomial, data = soup)
+
+model.03 <- glm(prop ~ spice + temp, weights= n_trials, family = binomial, data = soup)
+
+model.04 <- glm(prop ~ spice * temp, weights= n_trials, family = binomial, data = soup)
+
+#compare models 
+kable(compare_performance(model.00, model.01, model.02, model.03, model.04), digits= 3) # Use AICc to decide: small sample!!! small AIC/ AICc indicate best model
 ```
