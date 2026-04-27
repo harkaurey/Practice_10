@@ -60,7 +60,8 @@ summary(soup) #numeric → mean, min, max, etc.+ factors → counts per category
 
 It's always a good idea to get to know your data, both by exploring them numerically and graphically. Since I asked you to write the units of the variables in the main text (because one of them contains a Greek letter), let's give that a go:
 
--   baseline is measured in $\mu$*g/mL*
+-   [baseline is measured in ]{style="color: darkblue"}$\mu$[g/mL]{style="color: darkblue"}
+
 -   temperature messured in °C
 
 ### Numerically
@@ -142,4 +143,98 @@ model.04 <- glm(prop ~ spice * temp, weights= n_trials, family = binomial, data 
 
 #compare models 
 kable(compare_performance(model.00, model.01, model.02, model.03, model.04), digits= 3) # Use AICc to decide: small sample!!! small AIC/ AICc indicate best model
+```
+
+### Validate the preferred model
+
+Great, we've decided on "the best" model given the data at hand, but it might still be a bad fit to our data. Let's make sure we can trust our selected model first, before we try to interpret it.
+
+```{r}
+#| label: validate model 
+
+#validate model 
+check_overdispersion(model.04)
+```
+
+```{r}
+#| label: fig-diagnostic-plots
+#| fig-cap: "Model diagnostics: these look pretty good "
+#| fig-width: !expr 25/2.54
+#| fig-height: !expr 30/2.54
+#| echo: false 
+
+#validate model 
+check_model(model.04)
+
+# Collinearity check on model without interaction
+#plot(check_collinearity(model.03))                   # Looks good!
+
+summary(model.04)
+```
+
+## Interpret model
+
+```{r}
+#| label: fig-interpret-objects
+#| fig-cap: "effectiveness of the treatments"
+#| echo: false 
+
+##| output: false --> output graph would not be shown
+
+# Objects to construct table 
+
+## Coefficients, SE, z and p -----
+  coef.table<- round(summary(model.04)$coefficients, 3)
+
+## Approximate R2 ----- amount of variablity explained by your model
+  r.2<- round(attributes(r.squaredLR(model.04))$adj.r.squared, 3)  
+
+## Compare performance to null-model ----- stored the anova of glm.00 and gln.02 in null.chi - - in quarto you extract number from model and store them in objects/names like null.chi
+  null.chi<- anova(model.04)
+
+# Objects to plot predictions -----------------------------------------------
+
+## Interaction plot -----
+  # Create vector of values for x-axis (to get smooth lines) which is baseline => x variable 
+  t.vec<- seq(min(soup$temp), max(soup$temp), length.out= 100)
+  
+  summary(soup$spice) #manually enter min, mean, max bellow 
+
+ # Create predictions dataframe
+  pred.int<- predict_response(model.04,
+                              c("temp [t.vec]",
+                                "spice [0.1, 4.06, 7.9]"))
+  # Assign text labels to the three spice groups
+  levels(pred.int$group)<- c("min", "mean", "max")
+  
+  # Create plot - created a plot which is stored under the name pred.plot 
+  pred.plot<- ggplot(pred.int, aes(x, predicted)) +
+    geom_point(data= soup, aes(temp, prop, size= n_trials), alpha= .4) +
+    geom_ribbon(aes(ymin= conf.low, ymax= conf.high,
+                    fill= group), alpha= .2) +
+    geom_line(aes(col= group)) +
+    labs(x= "Serving temperature\n of the soup (°C)", #added line break with \n!!!!
+         y= "Proportion of patients with\n enhanced immune response",
+         size= "Trial size", col= "Spiciness", fill= "Spiciness") +
+    coord_cartesian(ylim= c(0, 1))
+
+```
+
+```{r}
+#| label: tbl-glm 
+#| tbl-cap: !expr paste("Estimates, associated standard errors and statistical significance of the parameters estimated by a binomial GLM.", "($R^2$=", r.2, ", $\\chi^2_{(", null.chi[2, 3], ",", null.chi[2, 1], ")}$=", round(null.chi[2,4], 3), ", $p$", format.pval(null.chi[2, 5], eps = 0.001), ")") 
+#refering to object in table caption is a pain look above - so if something in data changes, it will updated by itself - important for GRP: reproducibiltiy and transparancy !! 
+# Create table
+kable(coef.table)
+```
+
+```{r}
+#| label: fig-predict
+#| fig-cap: "Raw data and model predictions to visualize the relationship between the propotion of patients that exhibited an elevated immune response, and the temperature and spicyness of the soup."
+#| fig-width: !expr 15/2.54
+#| fig-height: !expr 9/2.54
+
+# Plot predictions
+  pred.plot
+
 ```
