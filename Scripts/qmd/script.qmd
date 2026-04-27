@@ -10,6 +10,7 @@ abstract-title: "Research question:"
 abstract: "......"
 format: 
   html: 
+    css: ../../sytles.css 
     embed-resources: true
     number-sections: true
     code-fold: true
@@ -22,7 +23,7 @@ execute:
   freeze: false 
 ---
 
-# Prepare Phase
+## Prepare Session
 
 Load the required libraries, import, screen and correct the data.
 
@@ -178,8 +179,7 @@ summary(model.04)
 #| label: fig-interpret-objects
 #| fig-cap: "effectiveness of the treatments"
 #| echo: false 
-
-##| output: false --> output graph would not be shown
+#| output: false --> output graph would not be shown
 
 # Objects to construct table 
 
